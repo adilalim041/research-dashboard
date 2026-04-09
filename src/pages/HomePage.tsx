@@ -17,7 +17,13 @@ export function HomePage() {
   const loading = cLoading || lLoading || aLoading
 
   if (loading) return <LoadingSpinner message="Loading dashboard data..." />
-  if (cError) return <ErrorMessage message={cError} />
+  if (cError) {
+    const handleRetry = () => {
+      import('@/services/github').then(m => m.clearCache())
+      window.location.reload()
+    }
+    return <ErrorMessage message={cError} onRetry={handleRetry} />
+  }
 
   const sortedCandidates = [...candidates].sort((a, b) => {
     if (a.date && b.date) return b.date.localeCompare(a.date)

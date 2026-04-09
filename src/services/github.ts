@@ -71,11 +71,17 @@ async function fetchWithCache<T>(url: string): Promise<T> {
   // 3. Fetch from network
   const res = await fetch(url, { headers: getHeaders() })
   if (!res.ok) {
-    throw new Error(`GitHub API error: ${res.status} ${res.statusText}`)
+    // Clear any stale cache for this URL
+    memCache.delete(url)
+    try { localStorage.removeItem(LS_CACHE_PREFIX + url) } catch {}
+    throw new Error(`GitHub API error: ${res.status}`)
   }
   const data = await res.json()
-  memCache.set(url, { data, ts: Date.now() })
-  lsSet(url, data)
+  // Only cache valid responses (arrays or objects with expected fields)
+  if (data && typeof data === 'object') {
+    memCache.set(url, { data, ts: Date.now() })
+    lsSet(url, data)
+  }
   return data as T
 }
 
