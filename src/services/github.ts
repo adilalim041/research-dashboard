@@ -11,7 +11,7 @@ function getHeaders(): HeadersInit {
     'Accept': 'application/vnd.github.v3+json',
   }
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+    headers['Authorization'] = `token ${token}`
   }
   return headers
 }
