@@ -9,17 +9,17 @@ export function AgentsPage() {
   const { agents, loading, error, reload } = useSubagents()
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
 
-  if (loading) return <LoadingSpinner message="Loading subagents..." />
+  if (loading) return <LoadingSpinner message="Загрузка субагентов..." />
   if (error) return <ErrorMessage message={error} onRetry={reload} />
 
-  const totalLearnings = agents.reduce((sum, a) => sum + a.learningsCount, 0)
+  const totalLearnings = agents.reduce((sum, a) => sum + a.записейCount, 0)
 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Subagents</h1>
+        <h1 className="text-2xl font-bold">Субагенты</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          {agents.length} research agents with {totalLearnings} total learnings
+          {agents.length} ресёрч-агентов, {totalLearnings} записей знаний
         </p>
       </div>
 
@@ -43,14 +43,14 @@ export function AgentsPage() {
                     <div>
                       <h3 className="font-semibold text-sm">{agent.displayName}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                        {agent.role || 'No role description'}
+                        {agent.role || 'Описание роли отсутствует'}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="text-lg font-bold font-mono">{agent.learningsCount}</p>
-                      <p className="text-xs text-muted-foreground">learnings</p>
+                      <p className="text-lg font-bold font-mono">{agent.записейCount}</p>
+                      <p className="text-xs text-muted-foreground">записей</p>
                     </div>
                     {isExpanded ? (
                       <ChevronUp size={16} className="text-muted-foreground" />
@@ -65,7 +65,7 @@ export function AgentsPage() {
                 <div className="px-5 pb-5 border-t border-border pt-4">
                   <div className="flex items-center gap-2 mb-3">
                     <BookOpen size={14} className="text-muted-foreground" />
-                    <h4 className="text-sm font-medium">Recent Learnings</h4>
+                    <h4 className="text-sm font-medium">Последние записи</h4>
                   </div>
                   {agent.recentLearnings.length > 0 ? (
                     <ul className="space-y-2">
@@ -82,7 +82,7 @@ export function AgentsPage() {
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-xs text-muted-foreground">No learnings recorded yet.</p>
+                    <p className="text-xs text-muted-foreground">Записей пока нет.</p>
                   )}
                 </div>
               )}
@@ -93,7 +93,7 @@ export function AgentsPage() {
 
       {agents.length === 0 && (
         <p className="text-center text-muted-foreground py-12">
-          No subagents found in the vault.
+          Субагенты не найдены.
         </p>
       )}
     </div>

@@ -11,10 +11,10 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/candidates', label: 'Candidates', icon: FlaskConical },
-  { to: '/library', label: 'Library', icon: Library },
-  { to: '/agents', label: 'Subagents', icon: Bot },
+  { to: '/', label: 'Главная', icon: LayoutDashboard },
+  { to: '/candidates', label: 'Кандидаты', icon: FlaskConical },
+  { to: '/library', label: 'Библиотека', icon: Library },
+  { to: '/agents', label: 'Субагенты', icon: Bot },
 ]
 
 export function Sidebar() {
@@ -50,10 +50,10 @@ export function Sidebar() {
         {/* Logo area */}
         <div className="p-6 border-b border-border">
           <h1 className="text-lg font-bold text-foreground tracking-tight">
-            Research Dashboard
+            Панель исследований
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            vault-research-agent
+            Ночной ресёрч-агент
           </p>
         </div>
 

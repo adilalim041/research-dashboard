@@ -112,3 +112,16 @@ export function getDateFromFilename(filename: string): string | null {
   const match = filename.match(/^(\d{4}-\d{2}-\d{2})/)
   return match ? match[1] : null
 }
+
+/**
+ * Parse a run filename like "2026-04-09_2230.md" and format it as
+ * "9 апр 2026, 22:30"
+ */
+export function formatRunDateTime(filename: string): string | null {
+  const match = filename.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})/)
+  if (!match) return null
+  const [, yearStr, monthStr, dayStr, hourStr, minStr] = match
+  const day = parseInt(dayStr, 10)
+  const month = parseInt(monthStr, 10) - 1
+  return `${day} ${MONTH_NAMES_RU[month] || ''} ${yearStr}, ${hourStr}:${minStr}`
+}

@@ -23,9 +23,9 @@ export function CandidateDetailPage() {
       .finally(() => setLoading(false))
   }, [filename])
 
-  if (loading) return <LoadingSpinner message="Loading candidate..." />
+  if (loading) return <LoadingSpinner message="Загрузка кандидата..." />
   if (error) return <ErrorMessage message={error} />
-  if (!content || !filename) return <ErrorMessage message="Not found" />
+  if (!content || !filename) return <ErrorMessage message="Не найдено" />
 
   const name = getNameFromFilename(decodeURIComponent(filename))
 
@@ -36,7 +36,7 @@ export function CandidateDetailPage() {
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
         <ArrowLeft size={16} />
-        Back to Candidates
+        Назад к кандидатам
       </Link>
 
       <div className="bg-card border border-border rounded-xl p-6 lg:p-8">

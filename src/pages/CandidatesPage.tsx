@@ -45,15 +45,21 @@ export function CandidatesPage() {
     return result
   }, [candidates, search, projectFilter, sortBy])
 
-  if (loading) return <LoadingSpinner message="Loading candidates..." />
+  const sortLabels: Record<SortKey, string> = {
+    date: 'дата',
+    score: 'оценка',
+    name: 'имя',
+  }
+
+  if (loading) return <LoadingSpinner message="Загрузка кандидатов..." />
   if (error) return <ErrorMessage message={error} onRetry={reload} />
 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Candidates</h1>
+        <h1 className="text-2xl font-bold">Кандидаты</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          {candidates.length} tools and libraries evaluated by the research agent
+          {candidates.length} инструментов и библиотек оценено агентом
         </p>
       </div>
 
@@ -63,7 +69,7 @@ export function CandidatesPage() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search candidates..."
+            placeholder="Поиск кандидатов..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-card border border-border rounded-lg pl-9 pr-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:border-accent"
@@ -77,7 +83,7 @@ export function CandidatesPage() {
         >
           {projects.map(p => (
             <option key={p} value={p}>
-              {p === 'all' ? 'All Projects' : p}
+              {p === 'all' ? 'Все проекты' : p}
             </option>
           ))}
         </select>
@@ -87,7 +93,7 @@ export function CandidatesPage() {
           className="flex items-center gap-2 bg-card border border-border rounded-lg px-4 py-2.5 text-sm hover:bg-muted transition-colors"
         >
           <ArrowUpDown size={14} />
-          Sort: {sortBy}
+          Сортировка: {sortLabels[sortBy]}
         </button>
       </div>
 
@@ -100,7 +106,7 @@ export function CandidatesPage() {
 
       {filtered.length === 0 && (
         <p className="text-center text-muted-foreground py-12">
-          No candidates match your filters.
+          Ничего не найдено по вашим фильтрам.
         </p>
       )}
     </div>

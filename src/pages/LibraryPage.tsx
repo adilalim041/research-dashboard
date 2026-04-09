@@ -27,15 +27,15 @@ export function LibraryPage() {
     return result
   }, [items, search, activeCategory])
 
-  if (loading) return <LoadingSpinner message="Loading library..." />
+  if (loading) return <LoadingSpinner message="Загрузка библиотеки..." />
   if (error) return <ErrorMessage message={error} onRetry={reload} />
 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Library</h1>
+        <h1 className="text-2xl font-bold">Библиотека</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          {items.length} approved tools across {categories.length} categories
+          {items.length} одобренных инструментов в {categories.length} категориях
         </p>
       </div>
 
@@ -44,7 +44,7 @@ export function LibraryPage() {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input
           type="text"
-          placeholder="Search library..."
+          placeholder="Поиск в библиотеке..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full bg-card border border-border rounded-lg pl-9 pr-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:border-accent"
@@ -62,7 +62,7 @@ export function LibraryPage() {
               : 'bg-card border-border text-muted-foreground hover:text-foreground'
           )}
         >
-          All ({items.length})
+          Все ({items.length})
         </button>
         {categories.map(cat => {
           const count = items.filter(i => i.category === cat).length
@@ -100,7 +100,7 @@ export function LibraryPage() {
                 <p className="text-xs text-muted-foreground">{item.category}</p>
               </div>
               <span className="text-muted-foreground text-xs">
-                {expandedItem === item.path ? 'Collapse' : 'Expand'}
+                {expandedItem === item.path ? 'Свернуть' : 'Развернуть'}
               </span>
             </button>
             {expandedItem === item.path && (
@@ -118,7 +118,7 @@ export function LibraryPage() {
 
       {filtered.length === 0 && (
         <p className="text-center text-muted-foreground py-12">
-          No library items match your search.
+          Ничего не найдено по вашему запросу.
         </p>
       )}
     </div>

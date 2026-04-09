@@ -59,7 +59,7 @@ export function CandidateCardComponent({ candidate }: Props) {
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-1 text-muted-foreground hover:text-accent transition-colors"
-            title="Open on GitHub"
+            title="Открыть на GitHub"
           >
             <ExternalLink size={13} />
           </a>

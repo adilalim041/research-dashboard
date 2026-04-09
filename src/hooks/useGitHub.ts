@@ -7,6 +7,7 @@ import {
   getLibraryCategoryFiles,
   getSubagentList,
   getSubagentFiles,
+  getRunFiles,
 } from '@/services/github'
 import {
   extractScore,
@@ -15,6 +16,7 @@ import {
   extractUrl,
   getNameFromFilename,
   getDateFromFilename,
+  formatRunDateTime,
 } from '@/lib/utils'
 
 /** Titles matching these patterns are internal notes, not tool candidates */
@@ -191,4 +193,34 @@ export function useSubagents() {
   useEffect(() => { load() }, [load])
 
   return { agents, loading, error, reload: load }
+}
+
+export function useLastRunTime() {
+  const [formatted, setFormatted] = useState<string>('N/A')
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      const files = await getRunFiles()
+      const mdFiles = files
+        .filter(f => f.name.endsWith('.md'))
+        .sort((a, b) => b.name.localeCompare(a.name))
+
+      if (mdFiles.length > 0) {
+        const parsed = formatRunDateTime(mdFiles[0].name)
+        if (parsed) {
+          setFormatted(parsed)
+        }
+      }
+    } catch {
+      // silently fail — card will show N/A
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  return { formatted, loading }
 }

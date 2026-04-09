@@ -121,6 +121,10 @@ export async function getSubagentFiles(name: string): Promise<GitHubFile[]> {
   return listDirectory(`research/subagents/${name}`)
 }
 
+export async function getRunFiles(): Promise<GitHubFile[]> {
+  return listDirectory('research/runs')
+}
+
 export function clearCache(): void {
   memCache.clear()
   try {
