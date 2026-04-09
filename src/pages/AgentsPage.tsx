@@ -12,7 +12,7 @@ export function AgentsPage() {
   if (loading) return <LoadingSpinner message="Загрузка субагентов..." />
   if (error) return <ErrorMessage message={error} onRetry={reload} />
 
-  const totalLearnings = agents.reduce((sum, a) => sum + a.записейCount, 0)
+  const totalLearnings = agents.reduce((sum, a) => sum + a.learningsCount, 0)
 
   return (
     <div>
@@ -49,7 +49,7 @@ export function AgentsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="text-lg font-bold font-mono">{agent.записейCount}</p>
+                      <p className="text-lg font-bold font-mono">{agent.learningsCount}</p>
                       <p className="text-xs text-muted-foreground">записей</p>
                     </div>
                     {isExpanded ? (
