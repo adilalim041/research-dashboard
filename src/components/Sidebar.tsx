@@ -4,6 +4,7 @@ import {
   FlaskConical,
   Library,
   Bot,
+  Map,
   Menu,
   X,
 } from 'lucide-react'
@@ -15,6 +16,7 @@ const navItems = [
   { to: '/candidates', label: 'Кандидаты', icon: FlaskConical },
   { to: '/library', label: 'Библиотека', icon: Library },
   { to: '/agents', label: 'Субагенты', icon: Bot },
+  { to: '/map', label: 'Карта', icon: Map },
 ]
 
 export function Sidebar() {

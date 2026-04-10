@@ -114,6 +114,69 @@ export function getDateFromFilename(filename: string): string | null {
 }
 
 /**
+ * Parse a run report markdown file into a structured RunReport object.
+ * Supports filenames: "2026-04-10_1602.md" and "2026-04-09.md"
+ */
+export function parseRunReport(filename: string, content: string): import('@/types').RunReport {
+  // Extract date and time from filename
+  const withTimeMatch = filename.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})/)
+  const dateOnlyMatch = filename.match(/^(\d{4})-(\d{2})-(\d{2})/)
+
+  let date = ''
+  let time = ''
+  let displayDate = ''
+
+  if (withTimeMatch) {
+    const [, year, monthStr, day, hour, min] = withTimeMatch
+    const month = parseInt(monthStr, 10) - 1
+    date = `${year}-${monthStr}-${day}`
+    time = `${hour}:${min}`
+    displayDate = `${parseInt(day, 10)} ${MONTH_NAMES_RU[month] || ''} ${year}, ${hour}:${min}`
+  } else if (dateOnlyMatch) {
+    const [, year, monthStr, day] = dateOnlyMatch
+    const month = parseInt(monthStr, 10) - 1
+    date = `${year}-${monthStr}-${day}`
+    time = ''
+    displayDate = `${parseInt(day, 10)} ${MONTH_NAMES_RU[month] || ''} ${year}`
+  }
+
+  // Parse Results section
+  const totalFoundMatch = content.match(/Total candidates found:\s*(\d+)/i)
+  const uniqueMatch = content.match(/Unique after dedup:\s*(\d+)/i)
+  const acceptedMatch = content.match(/Accepted[^:]*:\s*(\d+)/i)
+  const cardsWrittenMatch = content.match(/Cards written:\s*(\d+)/i)
+  const durationMatch = content.match(/\*\*Duration:\*\*\s*(\d+)\s*seconds?/i)
+
+  // Parse Niches searched section
+  const nichesSection = content.match(/## Niches searched\n([\s\S]*?)(?:\n##|$)/)
+  const niches: import('@/types').NicheInfo[] = []
+  if (nichesSection) {
+    const lines = nichesSection[1].trim().split('\n')
+    for (const line of lines) {
+      const nicheMatch = line.match(/^-\s*([^:]+):\s*(.+)$/)
+      if (nicheMatch) {
+        const name = nicheMatch[1].trim()
+        const keywords = nicheMatch[2].split(',').map(k => k.trim()).filter(Boolean)
+        niches.push({ name, keywords })
+      }
+    }
+  }
+
+  return {
+    filename,
+    date,
+    time,
+    displayDate,
+    totalFound: totalFoundMatch ? parseInt(totalFoundMatch[1], 10) : 0,
+    uniqueAfterDedup: uniqueMatch ? parseInt(uniqueMatch[1], 10) : 0,
+    accepted: acceptedMatch ? parseInt(acceptedMatch[1], 10) : 0,
+    cardsWritten: cardsWrittenMatch ? parseInt(cardsWrittenMatch[1], 10) : 0,
+    niches,
+    durationSeconds: durationMatch ? parseInt(durationMatch[1], 10) : null,
+  }
+}
+
+/**
  * Parse a run filename like "2026-04-09_2230.md" and format it as
  * "9 апр 2026, 22:30"
  */

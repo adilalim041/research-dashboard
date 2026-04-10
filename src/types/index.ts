@@ -43,3 +43,21 @@ export interface DashboardStats {
   totalSubagents: number
   lastRunDate: string | null
 }
+
+export interface NicheInfo {
+  name: string
+  keywords: string[]
+}
+
+export interface RunReport {
+  filename: string
+  date: string
+  time: string
+  displayDate: string
+  totalFound: number
+  uniqueAfterDedup: number
+  accepted: number
+  cardsWritten: number
+  niches: NicheInfo[]
+  durationSeconds: number | null
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { CandidateCard, LibraryItem, SubagentInfo } from '@/types'
+import type { CandidateCard, LibraryItem, SubagentInfo, RunReport } from '@/types'
 import {
   getCandidateFiles,
   getFileContent,
@@ -17,6 +17,7 @@ import {
   getNameFromFilename,
   getDateFromFilename,
   formatRunDateTime,
+  parseRunReport,
 } from '@/lib/utils'
 
 /** Titles matching these patterns are internal notes, not tool candidates */
@@ -223,4 +224,42 @@ export function useLastRunTime() {
   useEffect(() => { load() }, [load])
 
   return { formatted, loading }
+}
+
+export function useRunReports() {
+  const [reports, setReports] = useState<RunReport[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const files = await getRunFiles()
+      const mdFiles = files
+        .filter(f => f.name.endsWith('.md'))
+        .sort((a, b) => b.name.localeCompare(a.name))
+
+      const parsed = await Promise.all(
+        mdFiles.map(async (f) => {
+          try {
+            const content = await getFileContent(f.path)
+            return parseRunReport(f.name, content)
+          } catch {
+            return null
+          }
+        })
+      )
+
+      setReports(parsed.filter(Boolean) as RunReport[])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load run reports')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  return { reports, loading, error, reload: load }
 }
