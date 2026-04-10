@@ -100,6 +100,22 @@ export function extractDescription(content: string): string {
   return ''
 }
 
+export function extractNiche(content: string): string {
+  // **Found by:** vault-research-agent, niche: frontend-ui
+  const match = content.match(/niche:\s*([^\n,]+)/i)
+  if (match) return match[1].trim()
+  return 'unknown'
+}
+
+export function extractCategory(content: string): string {
+  // **Category:** ui-component
+  const fm = extractFrontmatter(content)
+  if (fm['category']) return fm['category']
+  const match = content.match(/\*\*Category:\*\*\s*([^\n]+)/i)
+  if (match) return match[1].trim()
+  return 'general'
+}
+
 export function getNameFromFilename(filename: string): string {
   return filename
     .replace(/\.md$/, '')

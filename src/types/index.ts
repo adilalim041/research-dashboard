@@ -19,6 +19,8 @@ export interface CandidateCard {
   date: string | null
   url: string | null
   content: string
+  niche: string
+  category: string
 }
 
 export interface LibraryItem {

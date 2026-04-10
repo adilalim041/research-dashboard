@@ -1,11 +1,16 @@
 import { Map } from 'lucide-react'
-import { useRunReports } from '@/hooks/useGitHub'
+import { useCandidates, useRunReports } from '@/hooks/useGitHub'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
+import { ResearchMap } from '@/components/ResearchMap'
 import { clearCache } from '@/services/github'
 
 export function MapPage() {
-  const { reports, loading, error } = useRunReports()
+  const { candidates, loading: candLoading, error: candError } = useCandidates()
+  const { reports, loading: repLoading, error: repError } = useRunReports()
+
+  const loading = candLoading || repLoading
+  const error = candError || repError
 
   if (loading) return <LoadingSpinner message="Загрузка данных карты..." />
   if (error) {
@@ -17,7 +22,7 @@ export function MapPage() {
   const totalFound = latest?.totalFound || 0
   const unique = latest?.uniqueAfterDedup || 0
   const accepted = latest?.accepted || 0
-  const niches = latest?.niches || []
+  const allNiches = latest?.niches || []
 
   // Funnel percentages
   const funnel = [
@@ -28,14 +33,35 @@ export function MapPage() {
 
   return (
     <div>
-      <div className="mb-8">
+      <div className="mb-6">
         <div className="flex items-center gap-3">
           <Map size={24} className="text-accent" />
-          <h1 className="text-2xl font-bold">Карта поиска</h1>
+          <h1 className="text-2xl font-bold">Карта территорий</h1>
         </div>
         <p className="text-muted-foreground text-sm mt-1">
-          Визуализация работы парсера
+          Территории исследований. Размер = находки, цвет = глубина. Клик → кандидаты.
         </p>
+      </div>
+
+      {/* Territory Map */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden mb-6">
+        <ResearchMap candidates={candidates} niches={allNiches} />
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold font-mono text-accent">{candidates.length}</p>
+          <p className="text-xs text-muted-foreground mt-1">Кандидатов</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold font-mono text-accent">{allNiches.length}</p>
+          <p className="text-xs text-muted-foreground mt-1">Ниш</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold font-mono text-accent">{reports.length}</p>
+          <p className="text-xs text-muted-foreground mt-1">Запусков</p>
+        </div>
       </div>
 
       {/* Funnel */}
@@ -62,24 +88,6 @@ export function MapPage() {
           </div>
         ) : (
           <p className="text-muted-foreground text-sm">Нет данных о запусках</p>
-        )}
-      </div>
-
-      {/* Niches grid */}
-      <div className="bg-card border border-border rounded-xl p-5 mb-6">
-        <h2 className="text-sm font-semibold text-muted-foreground mb-4">Ниши поиска ({niches.length})</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {niches.map((niche) => (
-            <div key={niche.name} className="bg-muted/30 border border-border rounded-lg p-3">
-              <h3 className="font-medium text-sm mb-1">{niche.name}</h3>
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                {niche.keywords.join(', ')}
-              </p>
-            </div>
-          ))}
-        </div>
-        {niches.length === 0 && (
-          <p className="text-muted-foreground text-sm">Ниши не найдены в отчётах</p>
         )}
       </div>
 

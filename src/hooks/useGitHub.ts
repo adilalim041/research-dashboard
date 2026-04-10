@@ -14,6 +14,8 @@ import {
   extractProject,
   extractDescription,
   extractUrl,
+  extractNiche,
+  extractCategory,
   getNameFromFilename,
   getDateFromFilename,
   formatRunDateTime,
@@ -60,6 +62,8 @@ export function useCandidates() {
               description: extractDescription(content),
               date: getDateFromFilename(f.name),
               url: extractUrl(content),
+              niche: extractNiche(content),
+              category: extractCategory(content),
               content,
             }
           } catch {
