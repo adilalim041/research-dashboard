@@ -202,6 +202,7 @@ export function useSubagents() {
 
 export function useLastRunTime() {
   const [formatted, setFormatted] = useState<string>('N/A')
+  const [timeAgo, setTimeAgo] = useState<string>('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -217,6 +218,19 @@ export function useLastRunTime() {
         if (parsed) {
           setFormatted(parsed)
         }
+        // Calculate "X ago" from filename (Astana UTC+5 timestamps)
+        const match = mdFiles[0].name.match(/^(\d{4})-(\d{2})-(\d{2})_?(\d{2})?(\d{2})?/)
+        if (match) {
+          const [, y, mo, d, h, m] = match
+          // Parse as Astana time (UTC+5), convert to UTC for comparison
+          const runDate = new Date(`${y}-${mo}-${d}T${h || '00'}:${m || '00'}:00+05:00`)
+          const now = new Date()
+          const diffMs = now.getTime() - runDate.getTime()
+          const diffH = Math.floor(diffMs / 3600000)
+          if (diffH < 1) setTimeAgo('менее часа назад')
+          else if (diffH < 24) setTimeAgo(`${diffH}ч назад`)
+          else setTimeAgo(`${Math.floor(diffH / 24)}д назад`)
+        }
       }
     } catch {
       // silently fail — card will show N/A
@@ -227,7 +241,7 @@ export function useLastRunTime() {
 
   useEffect(() => { load() }, [load])
 
-  return { formatted, loading }
+  return { formatted, timeAgo, loading }
 }
 
 export function useRunReports() {

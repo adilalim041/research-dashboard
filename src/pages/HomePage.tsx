@@ -11,7 +11,7 @@ export function HomePage() {
   const { candidates, loading: cLoading, error: cError } = useCandidates()
   const { items: libraryItems, loading: lLoading } = useLibrary()
   const { agents, loading: aLoading } = useSubagents()
-  const { formatted: lastRunFormatted, loading: rLoading } = useLastRunTime()
+  const { formatted: lastRunFormatted, timeAgo, loading: rLoading } = useLastRunTime()
 
   const loading = cLoading || lLoading || aLoading || rLoading
 
@@ -50,6 +50,7 @@ export function HomePage() {
           title="Последний парсинг"
           value={lastRunFormatted}
           icon={<Clock size={20} />}
+          subtitle={timeAgo}
         />
         <StatCard
           title="Кандидаты"
