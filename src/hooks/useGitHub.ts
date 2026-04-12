@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { CandidateCard, LibraryItem, SubagentInfo, RunReport } from '@/types'
+import type { CandidateCard, LibraryItem, SubagentInfo, RunReport, StudyReport } from '@/types'
 import {
   getCandidateFiles,
   getFileContent,
@@ -8,6 +8,8 @@ import {
   getSubagentList,
   getSubagentFiles,
   getRunFiles,
+  getStudyFolders,
+  getStudyFiles,
 } from '@/services/github'
 import {
   extractScore,
@@ -16,6 +18,8 @@ import {
   extractUrl,
   extractNiche,
   extractCategory,
+  extractStudyStatus,
+  parseStudyOverview,
   getNameFromFilename,
   getDateFromFilename,
   formatRunDateTime,
@@ -43,7 +47,18 @@ export function useCandidates() {
     try {
       setLoading(true)
       setError(null)
-      const files = await getCandidateFiles()
+
+      // Load candidate files and study folders in parallel
+      const [files, studyDirs] = await Promise.all([
+        getCandidateFiles(),
+        getStudyFolders().catch(() => []), // graceful: studies folder may not exist yet
+      ])
+
+      // Extract folder names for cross-referencing (dirs only, skip _index.md etc.)
+      const studyFolderNames = studyDirs
+        .filter(d => d.type === 'dir')
+        .map(d => d.name)
+
       const mdFiles = files.filter(f => f.name.endsWith('.md') && f.name !== '_index.md')
 
       const items = await Promise.all(
@@ -64,6 +79,7 @@ export function useCandidates() {
               url: extractUrl(content),
               niche: extractNiche(content),
               category: extractCategory(content),
+              studyStatus: extractStudyStatus(content, f.name, studyFolderNames),
               content,
             }
           } catch {
@@ -280,4 +296,100 @@ export function useRunReports() {
   useEffect(() => { load() }, [load])
 
   return { reports, loading, error, reload: load }
+}
+
+export function useStudies() {
+  const [studies, setStudies] = useState<StudyReport[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const dirs = await getStudyFolders().catch(() => [])
+      const studyDirs = dirs.filter(d => d.type === 'dir')
+
+      if (studyDirs.length === 0) {
+        setStudies([])
+        return
+      }
+
+      const reports = await Promise.all(
+        studyDirs.map(async (d): Promise<StudyReport> => {
+          // Folder name format: YYYY-MM-DD-owner-repo
+          const dateMatch = d.name.match(/^(\d{4}-\d{2}-\d{2})-(.+)$/)
+          const date = dateMatch ? dateMatch[1] : null
+          const repoName = dateMatch
+            ? dateMatch[2].replace(/-/g, '/').replace(/\//, '-') // owner-repo → keep as-is
+            : d.name
+
+          let deepScore: number | null = null
+          let recommendation: 'adopt' | 'watch' | 'skip' | null = null
+          let stack: string[] = []
+          let files: string[] = []
+          let candidateFilename: string | null = null
+
+          try {
+            const studyFiles = await getStudyFiles(d.name)
+            const mdFiles = studyFiles.filter(f => f.name.endsWith('.md'))
+            files = mdFiles.map(f => f.name.replace(/\.md$/, ''))
+
+            // Parse overview.md if it exists
+            const overviewFile = mdFiles.find(f => f.name === 'overview.md')
+            if (overviewFile) {
+              try {
+                const content = await getFileContent(overviewFile.path)
+                const parsed = parseStudyOverview(content)
+                deepScore = parsed.deepScore
+                recommendation = parsed.recommendation
+                stack = parsed.stack
+
+                // Extract candidate filename reference if present
+                // e.g. **Candidate:** 2026-04-10-measuredco-puck.md
+                const candMatch = content.match(/\*\*Candidate:\*\*\s*([^\s\n]+\.md)/i)
+                if (candMatch) candidateFilename = candMatch[1]
+              } catch { /* overview unreadable, skip */ }
+            }
+
+            // If candidate filename not in overview, try to infer from folder name
+            // Folder: 2026-04-10-measuredco-puck → candidate: 2026-04-10-measuredco-puck.md
+            if (!candidateFilename && dateMatch) {
+              candidateFilename = `${d.name}.md`
+            }
+          } catch { /* study files unreadable */ }
+
+          return {
+            repoName,
+            folderName: d.name,
+            date,
+            deepScore,
+            recommendation,
+            stack,
+            files,
+            candidateFilename,
+          }
+        })
+      )
+
+      // Sort by date descending (most recent first)
+      reports.sort((a, b) => {
+        if (!a.date && !b.date) return 0
+        if (!a.date) return 1
+        if (!b.date) return -1
+        return b.date.localeCompare(a.date)
+      })
+
+      setStudies(reports)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load studies')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  return { studies, loading, error, reload: load }
 }

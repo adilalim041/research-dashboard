@@ -125,6 +125,14 @@ export async function getRunFiles(): Promise<GitHubFile[]> {
   return listDirectory('research/runs')
 }
 
+export async function getStudyFolders(): Promise<GitHubFile[]> {
+  return listDirectory('research/studies')
+}
+
+export async function getStudyFiles(folderName: string): Promise<GitHubFile[]> {
+  return listDirectory(`research/studies/${folderName}`)
+}
+
 export function clearCache(): void {
   memCache.clear()
   try {

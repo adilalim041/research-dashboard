@@ -4,13 +4,23 @@ import { useCandidates } from '@/hooks/useGitHub'
 import { CandidateCardComponent } from '@/components/CandidateCard'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
+import type { CandidateCard } from '@/types'
 
 type SortKey = 'date' | 'score' | 'name'
+type StatusFilter = 'all' | 'found' | 'studied' | 'applied'
+
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  all:     'Все статусы',
+  found:   'Найдено',
+  studied: 'Изучено',
+  applied: 'Применено',
+}
 
 export function CandidatesPage() {
   const { candidates, loading, error, reload } = useCandidates()
   const [search, setSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [sortBy, setSortBy] = useState<SortKey>('date')
 
   const projects = useMemo(() => {
@@ -19,7 +29,7 @@ export function CandidatesPage() {
   }, [candidates])
 
   const filtered = useMemo(() => {
-    let result = [...candidates]
+    let result: CandidateCard[] = [...candidates]
 
     if (search) {
       const q = search.toLowerCase()
@@ -30,6 +40,10 @@ export function CandidatesPage() {
 
     if (projectFilter !== 'all') {
       result = result.filter(c => c.project === projectFilter)
+    }
+
+    if (statusFilter !== 'all') {
+      result = result.filter(c => c.studyStatus === statusFilter)
     }
 
     result.sort((a, b) => {
@@ -43,16 +57,16 @@ export function CandidatesPage() {
     })
 
     return result
-  }, [candidates, search, projectFilter, sortBy])
+  }, [candidates, search, projectFilter, statusFilter, sortBy])
 
   const sortLabels: Record<SortKey, string> = {
-    date: 'дата',
+    date:  'дата',
     score: 'оценка',
-    name: 'имя',
+    name:  'имя',
   }
 
   if (loading) return <LoadingSpinner message="Загрузка кандидатов..." />
-  if (error) return <ErrorMessage message={error} onRetry={reload} />
+  if (error)   return <ErrorMessage message={error} onRetry={reload} />
 
   return (
     <div>
@@ -85,6 +99,16 @@ export function CandidatesPage() {
             <option key={p} value={p}>
               {p === 'all' ? 'Все проекты' : p}
             </option>
+          ))}
+        </select>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          className="bg-card border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-accent"
+        >
+          {(Object.entries(STATUS_LABELS) as [StatusFilter, string][]).map(([val, label]) => (
+            <option key={val} value={val}>{label}</option>
           ))}
         </select>
 

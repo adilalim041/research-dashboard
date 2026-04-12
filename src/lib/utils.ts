@@ -193,6 +193,84 @@ export function parseRunReport(filename: string, content: string): import('@/typ
 }
 
 /**
+ * Determine study status for a candidate card.
+ *
+ * Priority order:
+ * 1. **Status:** field in the card content
+ * 2. Cross-reference with existing study folders (folder name contains the repo slug)
+ * 3. Default to 'found'
+ *
+ * Folder naming convention: YYYY-MM-DD-owner-repo
+ * Candidate filename: 2026-04-10-measuredco-puck.md → slug = "measuredco-puck"
+ */
+export function extractStudyStatus(
+  content: string,
+  candidateFilename: string,
+  studyFolders: string[],
+): 'found' | 'studied' | 'applied' {
+  // 1. Explicit **Status:** field in the card
+  const statusMatch = content.match(/\*\*Status:\*\*\s*(\w+)/i)
+  if (statusMatch) {
+    const s = statusMatch[1].toLowerCase()
+    if (s === 'applied') return 'applied'
+    if (s === 'studied') return 'studied'
+  }
+
+  // 2. Cross-reference with study folders
+  // candidateFilename: "2026-04-10-measuredco-puck.md" → slug = "measuredco-puck"
+  const slugMatch = candidateFilename.replace(/\.md$/, '').match(/^\d{4}-\d{2}-\d{2}-(.+)$/)
+  if (slugMatch) {
+    const slug = slugMatch[1].toLowerCase()
+    const hasStudy = studyFolders.some(folder =>
+      folder.toLowerCase().includes(slug)
+    )
+    if (hasStudy) return 'studied'
+  }
+
+  return 'found'
+}
+
+/**
+ * Parse overview.md of a study folder to extract deepScore, recommendation, and stack.
+ * Returns partial data — missing fields will be null / empty array.
+ */
+export function parseStudyOverview(
+  content: string,
+): { deepScore: number | null; recommendation: 'adopt' | 'watch' | 'skip' | null; stack: string[] } {
+  // Deep score: **Score:** 8.5/10 or **Deep Score:** 8.5
+  const scoreMatch =
+    content.match(/\*\*Deep Score:\*\*\s*(\d+\.?\d*)\/10/i) ||
+    content.match(/\*\*Deep Score:\*\*\s*(\d+\.?\d*)/i) ||
+    content.match(/Score[:\s]*(\d+\.?\d*)\/10/i)
+  const deepScore = scoreMatch ? parseFloat(scoreMatch[1]) : null
+
+  // Recommendation: **Recommendation:** adopt / watch / skip
+  const recMatch = content.match(/\*\*Recommendation:\*\*\s*(adopt|watch|skip)/i)
+  let recommendation: 'adopt' | 'watch' | 'skip' | null = null
+  if (recMatch) {
+    recommendation = recMatch[1].toLowerCase() as 'adopt' | 'watch' | 'skip'
+  }
+
+  // Stack: **Stack:** React, TypeScript, Tailwind  OR  - React\n- TypeScript
+  const stackFieldMatch = content.match(/\*\*Stack:\*\*\s*([^\n]+)/i)
+  let stack: string[] = []
+  if (stackFieldMatch) {
+    stack = stackFieldMatch[1].split(/[,;]/).map(s => s.trim()).filter(Boolean)
+  } else {
+    // Fallback: look for a Stack section with bullet list
+    const stackSection = content.match(/##\s*Stack[\s\S]*?\n((?:\s*[-*]\s*.+\n?)+)/i)
+    if (stackSection) {
+      stack = stackSection[1]
+        .split('\n')
+        .map(l => l.replace(/^\s*[-*]\s*/, '').trim())
+        .filter(Boolean)
+    }
+  }
+
+  return { deepScore, recommendation, stack }
+}
+
+/**
  * Parse a run filename like "2026-04-09_2230.md" and format it as
  * "9 апр 2026, 22:30"
  */

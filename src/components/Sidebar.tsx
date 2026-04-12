@@ -5,6 +5,7 @@ import {
   Library,
   Bot,
   Map,
+  Microscope,
   Menu,
   X,
 } from 'lucide-react'
@@ -12,11 +13,12 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { to: '/', label: 'Главная', icon: LayoutDashboard },
-  { to: '/candidates', label: 'Кандидаты', icon: FlaskConical },
-  { to: '/library', label: 'Библиотека', icon: Library },
-  { to: '/agents', label: 'Субагенты', icon: Bot },
-  { to: '/map', label: 'Карта', icon: Map },
+  { to: '/',          label: 'Главная',         icon: LayoutDashboard },
+  { to: '/candidates', label: 'Кандидаты',       icon: FlaskConical    },
+  { to: '/library',   label: 'Библиотека',       icon: Library         },
+  { to: '/agents',    label: 'Субагенты',        icon: Bot             },
+  { to: '/studies',   label: 'Глубокий анализ',  icon: Microscope      },
+  { to: '/map',       label: 'Карта',            icon: Map             },
 ]
 
 export function Sidebar() {
@@ -65,6 +67,7 @@ export function Sidebar() {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === '/'}
               onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
                 cn(

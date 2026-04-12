@@ -21,6 +21,19 @@ export interface CandidateCard {
   content: string
   niche: string
   category: string
+  studyStatus: 'found' | 'studied' | 'applied'
+}
+
+export interface StudyReport {
+  repoName: string
+  folderName: string
+  date: string | null
+  deepScore: number | null
+  recommendation: 'adopt' | 'watch' | 'skip' | null
+  stack: string[]
+  /** Which analysis files exist: overview, frontend, backend, infra, patterns, verdict */
+  files: string[]
+  candidateFilename: string | null
 }
 
 export interface LibraryItem {

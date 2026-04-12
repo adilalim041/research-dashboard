@@ -1,9 +1,10 @@
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, Search, Brain, GitFork, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Calendar, Search, Brain, GitFork, ExternalLink, CheckCircle, Microscope } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getFileContent } from '@/services/github'
+import { useCandidates, useStudies } from '@/hooks/useGitHub'
 import {
   getNameFromFilename,
   getDateFromFilename,
@@ -17,6 +18,17 @@ import {
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { cn } from '@/lib/utils'
+import type { StudyReport } from '@/types'
+
+// Tab configuration for study section — same as StudiesPage
+const TAB_CONFIG: { key: string; label: string }[] = [
+  { key: 'overview',  label: 'Обзор'    },
+  { key: 'frontend',  label: 'Фронтенд' },
+  { key: 'backend',   label: 'Бэкенд'   },
+  { key: 'infra',     label: 'Инфра'    },
+  { key: 'patterns',  label: 'Паттерны' },
+  { key: 'verdict',   label: 'Вердикт'  },
+]
 
 function extractFoundBy(content: string): string | null {
   const match = content.match(/\*\*Found by:\*\*\s*(.+)/i)
@@ -24,10 +36,102 @@ function extractFoundBy(content: string): string | null {
 }
 
 function hasDeepAnalysis(content: string): boolean {
-  // Cards with "Startup potential", "Best features", "Risks and gotchas" = deep analysis
   return content.includes('## Startup potential') ||
          content.includes('## Best features') ||
          content.includes('## How to start using it')
+}
+
+// Lazy-loading tab content for study analysis
+function StudyTabContent({ folderName, fileKey }: { folderName: string; fileKey: string }) {
+  const [content, setContent] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  if (!loaded && !loading) {
+    setLoading(true)
+    setLoaded(true)
+    getFileContent(`research/studies/${folderName}/${fileKey}.md`)
+      .then(c => { setContent(c); setLoading(false) })
+      .catch(e => { setError(e instanceof Error ? e.message : 'Ошибка загрузки'); setLoading(false) })
+  }
+
+  if (loading) return <LoadingSpinner message="Загрузка..." />
+  if (error)   return <p className="text-sm text-red-400 py-4">{error}</p>
+  if (!content) return null
+
+  return (
+    <div className="markdown-content">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+    </div>
+  )
+}
+
+function StudySection({ study }: { study: StudyReport }) {
+  const availableTabs = TAB_CONFIG.filter(t => study.files.includes(t.key))
+  const [activeTab, setActiveTab] = useState(availableTabs[0]?.key ?? 'overview')
+
+  if (availableTabs.length === 0) return null
+
+  const recStyles: Record<string, string> = {
+    adopt: 'bg-green-500/15 text-green-400 border border-green-500/20',
+    watch: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20',
+    skip:  'bg-red-500/15  text-red-400  border border-red-500/20',
+  }
+  const recLabels: Record<string, string> = { adopt: 'Adopt', watch: 'Watch', skip: 'Skip' }
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden mb-4">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Microscope size={16} className="text-accent" />
+          <h2 className="text-sm font-semibold">Результаты глубокого анализа</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          {study.deepScore !== null && (
+            <span className={cn(
+              'text-sm font-bold font-mono',
+              study.deepScore >= 8 ? 'text-green-400' :
+              study.deepScore >= 6 ? 'text-yellow-400' : 'text-red-400'
+            )}>
+              {study.deepScore.toFixed(1)}
+            </span>
+          )}
+          {study.recommendation && (
+            <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide', recStyles[study.recommendation])}>
+              {recLabels[study.recommendation]}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-0 border-b border-border overflow-x-auto">
+        {availableTabs.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={cn(
+              'px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px',
+              activeTab === tab.key
+                ? 'border-accent text-accent'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="p-6">
+        {availableTabs.map(tab => (
+          activeTab === tab.key && (
+            <StudyTabContent key={tab.key} folderName={study.folderName} fileKey={tab.key} />
+          )
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export function CandidateDetailPage() {
@@ -35,6 +139,11 @@ export function CandidateDetailPage() {
   const [content, setContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Load studies to find if this candidate has been studied
+  const { studies } = useStudies()
+  // Load candidates to get studyStatus
+  const { candidates } = useCandidates()
 
   useEffect(() => {
     if (!filename) return
@@ -46,7 +155,7 @@ export function CandidateDetailPage() {
   }, [filename])
 
   if (loading) return <LoadingSpinner message="Загрузка кандидата..." />
-  if (error) return <ErrorMessage message={error} />
+  if (error)   return <ErrorMessage message={error} />
   if (!content || !filename) return <ErrorMessage message="Не найдено" />
 
   const decodedFilename = decodeURIComponent(filename)
@@ -60,28 +169,53 @@ export function CandidateDetailPage() {
   const foundBy = extractFoundBy(content)
   const isDeep = hasDeepAnalysis(content)
 
-  // Timeline steps
+  // Find matching candidate for studyStatus
+  const candidateData = candidates.find(c => c.filename === decodedFilename)
+  const studyStatus = candidateData?.studyStatus ?? 'found'
+
+  // Find matching study report
+  const matchingStudy = studies.find(s =>
+    s.candidateFilename === decodedFilename ||
+    // Fallback: match by date + name slug from folder
+    (date && s.folderName.startsWith(date) && s.repoName.toLowerCase().includes(
+      decodedFilename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '').replace(/-/g, '').toLowerCase()
+    ))
+  ) ?? null
+
+  const isStudied = studyStatus === 'studied' || studyStatus === 'applied'
+  const isApplied = studyStatus === 'applied'
+
+  // Timeline steps — 4 total
   const steps = [
     {
       icon: Search,
-      label: 'Найден парсером',
+      label: 'Найден',
       detail: foundBy || 'vault-research-agent',
       date: date ? formatDateRu(date) : null,
       done: true,
     },
     {
       icon: Brain,
-      label: 'Глубокий анализ',
-      detail: isDeep ? 'Startup potential, use cases, risks' : 'Базовый анализ',
-      date: date ? formatDateRu(date) : null,
-      done: true,
+      label: 'Изучен',
+      detail: isStudied
+        ? (matchingStudy?.recommendation ? `Рекомендация: ${matchingStudy.recommendation}` : 'Глубокий анализ завершён')
+        : (isDeep ? 'Базовый анализ есть' : 'Ещё не изучен'),
+      date: matchingStudy?.date ? formatDateRu(matchingStudy.date) : null,
+      done: isStudied,
     },
     {
       icon: GitFork,
-      label: 'В библиотеку',
+      label: 'В библиотеке',
       detail: 'Одобрен для использования в проектах',
       date: null,
       done: false, // TODO: check if in library
+    },
+    {
+      icon: CheckCircle,
+      label: 'Применён',
+      detail: 'Использован в продакшн',
+      date: null,
+      done: isApplied,
     },
   ]
 
@@ -150,7 +284,7 @@ export function CandidateDetailPage() {
         </div>
       </div>
 
-      {/* Processing timeline */}
+      {/* Processing timeline — 4 steps */}
       <div className="bg-card border border-border rounded-xl p-5 mb-4">
         <h2 className="text-sm font-semibold text-muted-foreground mb-4">Этапы обработки</h2>
         <div className="flex items-start gap-0">
@@ -176,7 +310,7 @@ export function CandidateDetailPage() {
                 )}>
                   {step.label}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5 max-w-[140px]">
+                <p className="text-xs text-muted-foreground mt-0.5 max-w-[120px]">
                   {step.detail}
                 </p>
                 {step.date && (
@@ -189,6 +323,9 @@ export function CandidateDetailPage() {
           ))}
         </div>
       </div>
+
+      {/* Study analysis section — shown only if study data exists */}
+      {matchingStudy && <StudySection study={matchingStudy} />}
 
       {/* Full content */}
       <div className="bg-card border border-border rounded-xl p-6 lg:p-8">

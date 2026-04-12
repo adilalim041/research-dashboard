@@ -20,6 +20,33 @@ function ScoreBadge({ score }: { score: number | null }) {
   )
 }
 
+function StudyStatusDot({ status }: { status: CandidateType['studyStatus'] }) {
+  if (status === 'found') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <span className="w-2 h-2 rounded-full bg-muted-foreground/40 inline-block shrink-0" />
+      </span>
+    )
+  }
+  if (status === 'studied') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-blue-400">
+        <span className="w-2 h-2 rounded-full bg-blue-400 inline-block shrink-0" />
+        изучен
+      </span>
+    )
+  }
+  if (status === 'applied') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-green-400">
+        <span className="w-2 h-2 rounded-full bg-green-400 inline-block shrink-0" />
+        применён
+      </span>
+    )
+  }
+  return null
+}
+
 export function CandidateCardComponent({ candidate }: Props) {
   const navigate = useNavigate()
 
@@ -35,7 +62,10 @@ export function CandidateCardComponent({ candidate }: Props) {
         <h3 className="font-semibold text-sm group-hover:text-accent transition-colors line-clamp-2">
           {candidate.name}
         </h3>
-        <ScoreBadge score={candidate.score} />
+        <div className="flex items-center gap-2 shrink-0">
+          <StudyStatusDot status={candidate.studyStatus} />
+          <ScoreBadge score={candidate.score} />
+        </div>
       </div>
 
       {candidate.description ? (

@@ -1,6 +1,6 @@
-import { FlaskConical, Library, Bot, Clock } from 'lucide-react'
+import { FlaskConical, Library, Bot, Clock, Microscope } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useCandidates, useLibrary, useSubagents, useLastRunTime } from '@/hooks/useGitHub'
+import { useCandidates, useLibrary, useSubagents, useLastRunTime, useStudies } from '@/hooks/useGitHub'
 import { StatCard } from '@/components/StatCard'
 import { CandidateCardComponent } from '@/components/CandidateCard'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -12,8 +12,9 @@ export function HomePage() {
   const { items: libraryItems, loading: lLoading } = useLibrary()
   const { agents, loading: aLoading } = useSubagents()
   const { formatted: lastRunFormatted, timeAgo, loading: rLoading } = useLastRunTime()
+  const { studies, loading: sLoading } = useStudies()
 
-  const loading = cLoading || lLoading || aLoading || rLoading
+  const loading = cLoading || lLoading || aLoading || rLoading || sLoading
 
   if (loading) return <LoadingSpinner message="Загрузка данных..." />
   if (cError) {
@@ -36,6 +37,11 @@ export function HomePage() {
     ? agents.reduce((sum, a) => sum + (a.learningsCount || 0), 0)
     : 0
 
+  // Candidates awaiting deep analysis (status = 'found' but no study yet)
+  const awaitingAnalysis = Array.isArray(candidates)
+    ? candidates.filter(c => c.studyStatus === 'found').length
+    : 0
+
   return (
     <div>
       <div className="mb-8">
@@ -45,7 +51,7 @@ export function HomePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <StatCard
           title="Последний парсинг"
           value={lastRunFormatted}
@@ -57,6 +63,12 @@ export function HomePage() {
           value={String(candidates.length || 0)}
           icon={<FlaskConical size={20} />}
           subtitle="Всего найдено"
+        />
+        <StatCard
+          title="Изучено"
+          value={String(studies.length || 0)}
+          icon={<Microscope size={20} />}
+          subtitle={`${awaitingAnalysis} ожидают анализа`}
         />
         <StatCard
           title="Библиотека"

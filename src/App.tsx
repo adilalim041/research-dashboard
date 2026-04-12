@@ -6,6 +6,7 @@ import { CandidateDetailPage } from '@/pages/CandidateDetailPage'
 import { LibraryPage } from '@/pages/LibraryPage'
 import { AgentsPage } from '@/pages/AgentsPage'
 import { MapPage } from '@/pages/MapPage'
+import { StudiesPage } from '@/pages/StudiesPage'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="/candidates/:filename" element={<CandidateDetailPage />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/agents" element={<AgentsPage />} />
+          <Route path="/studies" element={<StudiesPage />} />
           <Route path="/map" element={<MapPage />} />
         </Route>
       </Routes>
