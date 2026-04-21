@@ -91,9 +91,9 @@ export function HomePage() {
             Все
           </Link>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sortedCandidates.slice(0, 6).map((c) => (
-            <CandidateCardComponent key={c.filename} candidate={c} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {sortedCandidates.slice(0, 10).map((c) => (
+            <CandidateCardComponent key={c.filename} candidate={c} compact />
           ))}
         </div>
         {sortedCandidates.length === 0 && (

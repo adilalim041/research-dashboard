@@ -7,6 +7,9 @@ import { LibraryPage } from '@/pages/LibraryPage'
 import { AgentsPage } from '@/pages/AgentsPage'
 import { MapPage } from '@/pages/MapPage'
 import { StudiesPage } from '@/pages/StudiesPage'
+import { BlueprintsPage } from '@/pages/BlueprintsPage'
+import { QueuePage } from '@/pages/QueuePage'
+import { TelemetryPage } from '@/pages/TelemetryPage'
 
 function App() {
   return (
@@ -19,6 +22,9 @@ function App() {
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/studies" element={<StudiesPage />} />
+          <Route path="/blueprints" element={<BlueprintsPage />} />
+          <Route path="/queue" element={<QueuePage />} />
+          <Route path="/telemetry" element={<TelemetryPage />} />
           <Route path="/map" element={<MapPage />} />
         </Route>
       </Routes>

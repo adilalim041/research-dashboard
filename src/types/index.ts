@@ -21,7 +21,7 @@ export interface CandidateCard {
   content: string
   niche: string
   category: string
-  studyStatus: 'found' | 'studied' | 'applied'
+  studyStatus: 'found' | 'studied' | 'applied' | 'promoted-tier-A' | 'promoted-tier-B' | 'rejected'
 }
 
 export interface StudyReport {
@@ -75,4 +75,53 @@ export interface RunReport {
   cardsWritten: number
   niches: NicheInfo[]
   durationSeconds: number | null
+}
+
+// ─── Blueprints ───────────────────────────────────────────────────────────────
+
+export interface BlueprintCard {
+  filename: string
+  path: string
+  title: string
+  status: 'draft' | 'active' | 'shipped' | null
+  createdAt: string | null
+  description: string
+  content: string
+}
+
+// ─── Queue ────────────────────────────────────────────────────────────────────
+
+export type QueueStatus = 'pending' | 'processing' | 'done' | 'failed'
+export type CommandType = 'blueprint' | 'study' | 'match' | 'research'
+
+export interface QueueCommand {
+  id: string
+  type: CommandType
+  status: QueueStatus
+  created_by: string
+  created_at: string
+  payload: Record<string, unknown>
+  // Done-specific
+  completed_at?: string
+  summary?: string
+  artifact_count?: number
+  // Failed-specific
+  error_message?: string
+  // Raw JSON for modal
+  raw: string
+}
+
+// ─── Telemetry ────────────────────────────────────────────────────────────────
+
+export interface AgentRunEntry {
+  ts: string
+  agent: string
+  task_id?: string
+  citations_ok: boolean
+  missing_citations?: boolean
+  learnings_read?: string[]
+  learnings_used?: string[]
+  library_read?: string[]
+  library_used?: string[]
+  notes?: string
 }

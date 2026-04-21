@@ -1,10 +1,10 @@
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, Search, Brain, GitFork, ExternalLink, CheckCircle, Microscope } from 'lucide-react'
+import { ArrowLeft, Calendar, Search, Brain, GitFork, ExternalLink, CheckCircle, Microscope, AlertTriangle, BookOpen } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getFileContent } from '@/services/github'
-import { useCandidates, useStudies } from '@/hooks/useGitHub'
+import { useCandidates, useStudies, useIncidents } from '@/hooks/useGitHub'
 import {
   getNameFromFilename,
   getDateFromFilename,
@@ -17,8 +17,10 @@ import {
 } from '@/lib/utils'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
+import { PromoteModal } from '@/components/PromoteModal'
 import { cn } from '@/lib/utils'
 import type { StudyReport } from '@/types'
+import type { IncidentMeta } from '@/hooks/useGitHub'
 
 // Tab configuration for study section — same as StudiesPage
 const TAB_CONFIG: { key: string; label: string }[] = [
@@ -134,16 +136,136 @@ function StudySection({ study }: { study: StudyReport }) {
   )
 }
 
+// ─── Incidents sidebar ────────────────────────────────────────────────────────
+
+/**
+ * Extracts the repo slug from a GitHub URL like https://github.com/owner/repo
+ * Returns { owner, repo, ownerRepo }
+ */
+function parseRepoFromUrl(url: string | null): { owner: string; repo: string; ownerRepo: string } | null {
+  if (!url) return null
+  const match = url.match(/github\.com\/([^/]+)\/([^/]+)/)
+  if (!match) return null
+  return { owner: match[1], repo: match[2], ownerRepo: `${match[1]}/${match[2]}` }
+}
+
+/** Case-insensitive check if text contains any of the keywords */
+function textContainsAny(text: string, keywords: string[]): boolean {
+  const lower = text.toLowerCase()
+  return keywords.some(k => k && lower.includes(k.toLowerCase()))
+}
+
+function IncidentsSidebar({
+  incidents,
+  loading,
+  url,
+  category,
+  candidateName,
+  studies,
+}: {
+  incidents: IncidentMeta[]
+  loading: boolean
+  url: string | null
+  category: string
+  candidateName: string
+  studies: import('@/types').StudyReport[]
+}) {
+  const repoInfo = parseRepoFromUrl(url)
+
+  // Build keyword list for matching
+  const keywords = [
+    repoInfo?.ownerRepo,
+    repoInfo?.repo,
+    category !== 'general' ? category : null,
+    candidateName,
+  ].filter(Boolean) as string[]
+
+  // Filter incidents that mention any keyword
+  const matchingIncidents = incidents.filter(inc =>
+    textContainsAny(inc.content, keywords)
+  )
+
+  // Filter studies that mention any keyword (cross-reference for "already studied")
+  const matchingStudies = studies.filter(study => {
+    const haystack = [study.repoName, study.folderName].join(' ')
+    return textContainsAny(haystack, keywords)
+  })
+
+  return (
+    <aside className="space-y-4">
+      {/* Incidents block */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3.5 border-b border-border flex items-center gap-2">
+          <AlertTriangle size={14} className="text-warning" />
+          <h3 className="text-sm font-semibold">Наши грабли в этой зоне</h3>
+        </div>
+        <div className="p-4">
+          {loading ? (
+            <p className="text-xs text-muted-foreground">Загрузка...</p>
+          ) : matchingIncidents.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Наших инцидентов в этой зоне нет
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {matchingIncidents.map(inc => (
+                <li key={inc.filename} className="border-l-2 border-warning/40 pl-3">
+                  <p className="text-xs font-medium text-foreground line-clamp-1">{inc.title}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">
+                    {inc.preview}
+                  </p>
+                  {inc.date && (
+                    <p className="text-xs text-muted-foreground/60 mt-0.5">{inc.date}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Previously studied block */}
+      {matchingStudies.length > 0 && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="px-4 py-3.5 border-b border-border flex items-center gap-2">
+            <BookOpen size={14} className="text-accent" />
+            <h3 className="text-sm font-semibold">Предыдущие изучения</h3>
+          </div>
+          <div className="p-4 space-y-2">
+            {matchingStudies.map(study => (
+              <Link
+                key={study.folderName}
+                to="/studies"
+                className="block text-xs text-accent hover:underline"
+              >
+                {study.repoName}
+                {study.date && (
+                  <span className="text-muted-foreground ml-1">({formatDateRu(study.date)})</span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </aside>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export function CandidateDetailPage() {
   const { filename } = useParams<{ filename: string }>()
   const [content, setContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [promoted, setPromoted] = useState(false)
 
   // Load studies to find if this candidate has been studied
   const { studies } = useStudies()
   // Load candidates to get studyStatus
   const { candidates } = useCandidates()
+  // Load incidents for sidebar
+  const { incidents, loading: incidentsLoading } = useIncidents()
 
   useEffect(() => {
     if (!filename) return
@@ -208,7 +330,7 @@ export function CandidateDetailPage() {
       label: 'В библиотеке',
       detail: 'Одобрен для использования в проектах',
       date: null,
-      done: false, // TODO: check if in library
+      done: false,
     },
     {
       icon: CheckCircle,
@@ -224,6 +346,8 @@ export function CandidateDetailPage() {
     score >= 6 ? 'text-yellow-400' :
     'text-red-400'
 
+  const showPromote = !promoted && (!studyStatus || studyStatus === 'found')
+
   return (
     <div>
       <Link
@@ -234,105 +358,124 @@ export function CandidateDetailPage() {
         Назад к кандидатам
       </Link>
 
-      {/* Meta info card */}
-      <div className="bg-card border border-border rounded-xl p-5 mb-4">
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <h1 className="text-xl font-bold">{name}</h1>
-            {url && (
-              <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-blue-400 hover:underline flex items-center gap-1 mt-1"
-              >
-                {url.replace('https://github.com/', '')}
-                <ExternalLink size={12} />
-              </a>
-            )}
-          </div>
-          {score !== null && (
-            <div className="text-right shrink-0">
-              <span className={cn('text-3xl font-bold font-mono', scoreColor)}>
-                {score.toFixed(1)}
-              </span>
-              <span className="text-sm text-muted-foreground">/10</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2 text-xs">
-          {date && (
-            <span className="flex items-center gap-1 bg-muted px-2.5 py-1 rounded-md">
-              <Calendar size={12} />
-              {formatDateRu(date)}
-            </span>
-          )}
-          <span className="bg-muted px-2.5 py-1 rounded-md">
-            {project}
-          </span>
-          {niche && niche !== 'unknown' && (
-            <span className="bg-accent/10 text-accent px-2.5 py-1 rounded-md">
-              {niche}
-            </span>
-          )}
-          {category && category !== 'general' && (
-            <span className="bg-muted px-2.5 py-1 rounded-md">
-              {category}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Processing timeline — 4 steps */}
-      <div className="bg-card border border-border rounded-xl p-5 mb-4">
-        <h2 className="text-sm font-semibold text-muted-foreground mb-4">Этапы обработки</h2>
-        <div className="flex items-start gap-0">
-          {steps.map((step, i) => (
-            <div key={step.label} className="flex-1 relative">
-              {/* Connector line */}
-              {i < steps.length - 1 && (
-                <div className={cn(
-                  'absolute top-4 left-[calc(50%+16px)] right-0 h-0.5',
-                  step.done ? 'bg-accent' : 'bg-border'
-                )} />
-              )}
-              <div className="flex flex-col items-center text-center relative z-10">
-                <div className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center mb-2',
-                  step.done ? 'bg-accent/20 text-accent' : 'bg-muted text-muted-foreground'
-                )}>
-                  <step.icon size={16} />
-                </div>
-                <p className={cn(
-                  'text-xs font-medium',
-                  step.done ? 'text-foreground' : 'text-muted-foreground'
-                )}>
-                  {step.label}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5 max-w-[120px]">
-                  {step.detail}
-                </p>
-                {step.date && (
-                  <p className="text-xs text-muted-foreground/70 mt-0.5">
-                    {step.date}
-                  </p>
+      {/* Two-column layout: main content + sidebar */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* ── Main column ─────────────────────────────────────────────────── */}
+        <div className="flex-1 min-w-0">
+          {/* Meta info card */}
+          <div className="bg-card border border-border rounded-xl p-5 mb-4">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h1 className="text-xl font-bold">{name}</h1>
+                {url && (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-400 hover:underline flex items-center gap-1 mt-1"
+                  >
+                    {url.replace('https://github.com/', '')}
+                    <ExternalLink size={12} />
+                  </a>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {showPromote && (
+                  <PromoteModal
+                    slug={decodedFilename.replace(/\.md$/, '')}
+                    autoProject={project}
+                    status={studyStatus}
+                    onPromoted={() => setPromoted(true)}
+                  />
+                )}
+                {score !== null && (
+                  <div className="text-right">
+                    <span className={cn('text-3xl font-bold font-mono', scoreColor)}>
+                      {score.toFixed(1)}
+                    </span>
+                    <span className="text-sm text-muted-foreground">/10</span>
+                  </div>
                 )}
               </div>
             </div>
-          ))}
+
+            <div className="flex flex-wrap gap-2 text-xs">
+              {date && (
+                <span className="flex items-center gap-1 bg-muted px-2.5 py-1 rounded-md">
+                  <Calendar size={12} />
+                  {formatDateRu(date)}
+                </span>
+              )}
+              <span className="bg-muted px-2.5 py-1 rounded-md">{project}</span>
+              {niche && niche !== 'unknown' && (
+                <span className="bg-accent/10 text-accent px-2.5 py-1 rounded-md">{niche}</span>
+              )}
+              {category && category !== 'general' && (
+                <span className="bg-muted px-2.5 py-1 rounded-md">{category}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Processing timeline — 4 steps */}
+          <div className="bg-card border border-border rounded-xl p-5 mb-4">
+            <h2 className="text-sm font-semibold text-muted-foreground mb-4">Этапы обработки</h2>
+            <div className="flex items-start gap-0">
+              {steps.map((step, i) => (
+                <div key={step.label} className="flex-1 relative">
+                  {i < steps.length - 1 && (
+                    <div className={cn(
+                      'absolute top-4 left-[calc(50%+16px)] right-0 h-0.5',
+                      step.done ? 'bg-accent' : 'bg-border'
+                    )} />
+                  )}
+                  <div className="flex flex-col items-center text-center relative z-10">
+                    <div className={cn(
+                      'w-8 h-8 rounded-full flex items-center justify-center mb-2',
+                      step.done ? 'bg-accent/20 text-accent' : 'bg-muted text-muted-foreground'
+                    )}>
+                      <step.icon size={16} />
+                    </div>
+                    <p className={cn(
+                      'text-xs font-medium',
+                      step.done ? 'text-foreground' : 'text-muted-foreground'
+                    )}>
+                      {step.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 max-w-[120px]">
+                      {step.detail}
+                    </p>
+                    {step.date && (
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">{step.date}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Study analysis section — shown only if study data exists */}
+          {matchingStudy && <StudySection study={matchingStudy} />}
+
+          {/* Full content */}
+          <div className="bg-card border border-border rounded-xl p-6 lg:p-8">
+            <div className="markdown-content">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Study analysis section — shown only if study data exists */}
-      {matchingStudy && <StudySection study={matchingStudy} />}
-
-      {/* Full content */}
-      <div className="bg-card border border-border rounded-xl p-6 lg:p-8">
-        <div className="markdown-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {content}
-          </ReactMarkdown>
+        {/* ── Sidebar ─────────────────────────────────────────────────────── */}
+        <div className="lg:w-72 xl:w-80 shrink-0">
+          <div className="lg:sticky lg:top-4">
+            <IncidentsSidebar
+              incidents={incidents}
+              loading={incidentsLoading}
+              url={url}
+              category={category}
+              candidateName={name}
+              studies={studies}
+            />
+          </div>
         </div>
       </div>
     </div>

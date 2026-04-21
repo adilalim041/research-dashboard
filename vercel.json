@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/promote.ts": {
+      "maxDuration": 15
+    }
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

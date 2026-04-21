@@ -133,6 +133,35 @@ export async function getStudyFiles(folderName: string): Promise<GitHubFile[]> {
   return listDirectory(`research/studies/${folderName}`)
 }
 
+export async function getBlueprintFiles(): Promise<GitHubFile[]> {
+  const files = await listDirectory('research/blueprints')
+  return files.filter(f => f.name.endsWith('.md') && f.name !== '_index.md')
+}
+
+export async function getQueueItems(status: 'pending' | 'processing' | 'done' | 'failed'): Promise<GitHubFile[]> {
+  const files = await listDirectory(`system/queue/${status}`).catch(() => [])
+  return files.filter(f => f.name.endsWith('.json') && !f.name.endsWith('.result.json') && !f.name.endsWith('.error.json'))
+}
+
+export async function getQueueResult(status: 'done' | 'failed', baseName: string): Promise<string | null> {
+  const suffix = status === 'done' ? '.result.json' : '.error.json'
+  const path = `system/queue/${status}/${baseName}${suffix}`
+  try {
+    return await getFileContent(path)
+  } catch {
+    return null
+  }
+}
+
+export async function getTelemetryLog(): Promise<string> {
+  return getFileContent('system/telemetry/agent_runs.jsonl')
+}
+
+export async function getIncidentFiles(): Promise<GitHubFile[]> {
+  const files = await listDirectory('incidents').catch(() => [])
+  return files.filter(f => f.name.endsWith('.md'))
+}
+
 export function clearCache(): void {
   memCache.clear()
   try {

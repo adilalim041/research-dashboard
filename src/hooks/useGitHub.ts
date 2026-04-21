@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { CandidateCard, LibraryItem, SubagentInfo, RunReport, StudyReport } from '@/types'
+import type { CandidateCard, LibraryItem, SubagentInfo, RunReport, StudyReport, BlueprintCard, QueueCommand, QueueStatus, AgentRunEntry } from '@/types'
 import {
   getCandidateFiles,
   getFileContent,
@@ -10,6 +10,11 @@ import {
   getRunFiles,
   getStudyFolders,
   getStudyFiles,
+  getBlueprintFiles,
+  getQueueItems,
+  getQueueResult,
+  getTelemetryLog,
+  getIncidentFiles,
 } from '@/services/github'
 import {
   extractScore,
@@ -24,6 +29,7 @@ import {
   getDateFromFilename,
   formatRunDateTime,
   parseRunReport,
+  extractFrontmatter,
 } from '@/lib/utils'
 
 /** Titles matching these patterns are internal notes, not tool candidates */
@@ -392,4 +398,303 @@ export function useStudies() {
   useEffect(() => { load() }, [load])
 
   return { studies, loading, error, reload: load }
+}
+
+// ─── Blueprints hook ──────────────────────────────────────────────────────────
+
+function extractBlueprintDescription(content: string): string {
+  // Strip frontmatter
+  const withoutFm = content.startsWith('---')
+    ? content.replace(/^---[\s\S]*?---\n?/, '')
+    : content
+
+  const lines = withoutFm.split('\n')
+
+  // Look for Problem / Overview section first
+  const problemIdx = lines.findIndex(l => /^##\s*(problem|overview)/i.test(l))
+  if (problemIdx !== -1) {
+    for (let i = problemIdx + 1; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (line && !line.startsWith('#')) {
+        return line.length > 200 ? line.slice(0, 197) + '...' : line
+      }
+    }
+  }
+
+  // Fallback: first non-empty, non-heading paragraph
+  for (const line of lines) {
+    const t = line.trim()
+    if (t && !t.startsWith('#') && !t.startsWith('---') && !t.startsWith('**')) {
+      return t.length > 200 ? t.slice(0, 197) + '...' : t
+    }
+  }
+
+  return ''
+}
+
+export function useBlueprints() {
+  const [blueprints, setBlueprints] = useState<BlueprintCard[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const files = await getBlueprintFiles()
+
+      const items = await Promise.all(
+        files.map(async (f) => {
+          try {
+            const content = await getFileContent(f.path)
+            const fm = extractFrontmatter(content)
+
+            // Title: first H1 or filename-derived
+            const h1Match = content.match(/^#\s+(.+)/m)
+            const title = h1Match ? h1Match[1].trim() : getNameFromFilename(f.name)
+
+            const rawStatus = fm['status']?.toLowerCase()
+            const status: BlueprintCard['status'] =
+              rawStatus === 'active' ? 'active' :
+              rawStatus === 'shipped' ? 'shipped' :
+              rawStatus === 'draft' ? 'draft' : null
+
+            const createdAt = fm['created_at'] || getDateFromFilename(f.name)
+
+            return {
+              filename: f.name,
+              path: f.path,
+              title,
+              status,
+              createdAt,
+              description: extractBlueprintDescription(content),
+              content,
+            } satisfies BlueprintCard
+          } catch {
+            return null
+          }
+        })
+      )
+
+      setBlueprints(items.filter(Boolean) as BlueprintCard[])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load blueprints')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  return { blueprints, loading, error, reload: load }
+}
+
+// ─── Queue hook ───────────────────────────────────────────────────────────────
+
+const QUEUE_STATUSES: QueueStatus[] = ['pending', 'processing', 'done', 'failed']
+
+function parseCommandType(raw: string | undefined): QueueCommand['type'] {
+  if (!raw) return 'research'
+  const t = raw.toLowerCase()
+  if (t === 'blueprint') return 'blueprint'
+  if (t === 'study') return 'study'
+  if (t === 'match') return 'match'
+  return 'research'
+}
+
+export function useQueue() {
+  const [columns, setColumns] = useState<Record<QueueStatus, QueueCommand[]>>({
+    pending: [], processing: [], done: [], failed: [],
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const [pendingFiles, processingFiles, doneFiles, failedFiles] = await Promise.all(
+        QUEUE_STATUSES.map(s => getQueueItems(s))
+      )
+
+      const filesByStatus: Record<QueueStatus, typeof pendingFiles> = {
+        pending: pendingFiles,
+        processing: processingFiles,
+        done: doneFiles,
+        failed: failedFiles,
+      }
+
+      const result: Record<QueueStatus, QueueCommand[]> = {
+        pending: [], processing: [], done: [], failed: [],
+      }
+
+      for (const status of QUEUE_STATUSES) {
+        const files = filesByStatus[status]
+        const commands = await Promise.all(
+          files.map(async (f) => {
+            try {
+              const raw = await getFileContent(f.path)
+              const parsed = JSON.parse(raw)
+
+              // For done/failed: try to load result/error sidecar
+              let summary: string | undefined
+              let artifactCount: number | undefined
+              let errorMessage: string | undefined
+
+              const baseName = f.name.replace(/\.json$/, '')
+
+              if (status === 'done') {
+                const resultRaw = await getQueueResult('done', baseName)
+                if (resultRaw) {
+                  try {
+                    const result = JSON.parse(resultRaw)
+                    summary = result.summary ?? undefined
+                    artifactCount = result.artifacts?.length ?? result.artifact_count ?? undefined
+                  } catch { /* ignore */ }
+                }
+              } else if (status === 'failed') {
+                const errorRaw = await getQueueResult('failed', baseName)
+                if (errorRaw) {
+                  try {
+                    const errObj = JSON.parse(errorRaw)
+                    errorMessage = errObj.error_message ?? errObj.message ?? undefined
+                  } catch { /* ignore */ }
+                }
+              }
+
+              return {
+                id: parsed.id ?? f.name.replace(/\.json$/, ''),
+                type: parseCommandType(parsed.type),
+                status,
+                created_by: parsed.created_by ?? 'unknown',
+                created_at: parsed.created_at ?? '',
+                payload: parsed.payload ?? {},
+                completed_at: parsed.completed_at,
+                summary,
+                artifact_count: artifactCount,
+                error_message: errorMessage,
+                raw,
+              } satisfies QueueCommand
+            } catch {
+              return null
+            }
+          })
+        )
+        result[status] = commands.filter(Boolean) as QueueCommand[]
+      }
+
+      // Sort done by completed_at desc, limit 20 by default
+      result.done.sort((a, b) => {
+        const da = a.completed_at || a.created_at
+        const db = b.completed_at || b.created_at
+        return db.localeCompare(da)
+      })
+
+      setColumns(result)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load queue')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  return { columns, loading, error, reload: load }
+}
+
+// ─── Telemetry hook ───────────────────────────────────────────────────────────
+
+export function useTelemetry() {
+  const [entries, setEntries] = useState<AgentRunEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const raw = await getTelemetryLog()
+      const parsed = raw
+        .split('\n')
+        .filter(Boolean)
+        .map(line => {
+          try { return JSON.parse(line) as AgentRunEntry }
+          catch { return null }
+        })
+        .filter(Boolean) as AgentRunEntry[]
+
+      setEntries(parsed)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load telemetry')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  return { entries, loading, error, reload: load }
+}
+
+// ─── Incidents hook (for CandidateDetailPage sidebar) ────────────────────────
+
+export interface IncidentMeta {
+  filename: string
+  path: string
+  title: string
+  date: string | null
+  preview: string
+  content: string
+}
+
+export function useIncidents() {
+  const [incidents, setIncidents] = useState<IncidentMeta[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const files = await getIncidentFiles()
+
+      const items = await Promise.all(
+        files.map(async (f) => {
+          try {
+            const content = await getFileContent(f.path)
+            const h1Match = content.match(/^#\s+(.+)/m)
+            const title = h1Match ? h1Match[1].trim() : getNameFromFilename(f.name)
+            const dateMatch = f.name.match(/^(\d{4}-\d{2}-\d{2})/)
+            const date = dateMatch ? dateMatch[1] : null
+
+            // First two non-empty, non-heading lines as preview
+            const previewLines = content
+              .split('\n')
+              .filter(l => l.trim() && !l.startsWith('#'))
+              .slice(0, 2)
+              .join(' ')
+
+            return { filename: f.name, path: f.path, title, date, preview: previewLines, content }
+          } catch {
+            return null
+          }
+        })
+      )
+
+      setIncidents(items.filter(Boolean) as IncidentMeta[])
+    } catch {
+      setError('Failed to load incidents')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  return { incidents, loading, error }
 }

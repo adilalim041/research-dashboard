@@ -8,17 +8,23 @@ import {
   Microscope,
   Menu,
   X,
+  Layers,
+  ListOrdered,
+  Activity,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { to: '/',          label: 'Главная',         icon: LayoutDashboard },
+  { to: '/',           label: 'Главная',         icon: LayoutDashboard },
   { to: '/candidates', label: 'Кандидаты',       icon: FlaskConical    },
-  { to: '/library',   label: 'Библиотека',       icon: Library         },
-  { to: '/agents',    label: 'Субагенты',        icon: Bot             },
-  { to: '/studies',   label: 'Глубокий анализ',  icon: Microscope      },
-  { to: '/map',       label: 'Карта',            icon: Map             },
+  { to: '/blueprints', label: 'Блюпринты',       icon: Layers          },
+  { to: '/library',    label: 'Библиотека',      icon: Library         },
+  { to: '/agents',     label: 'Субагенты',       icon: Bot             },
+  { to: '/studies',    label: 'Глубокий анализ', icon: Microscope      },
+  { to: '/queue',      label: 'Очередь',         icon: ListOrdered     },
+  { to: '/telemetry',  label: 'Телеметрия',      icon: Activity        },
+  { to: '/map',        label: 'Карта',           icon: Map             },
 ]
 
 export function Sidebar() {
