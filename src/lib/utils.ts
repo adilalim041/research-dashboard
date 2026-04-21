@@ -107,6 +107,28 @@ export function extractNiche(content: string): string {
   return 'unknown'
 }
 
+/**
+ * Extract **Usage type:** field from candidate card content.
+ * Matches: **Usage type:** library
+ */
+export function extractUsageType(content: string): string | null {
+  const match = content.match(/^\*\*Usage type:\*\*\s*(\S+)\s*$/m)
+  return match ? match[1].trim() : null
+}
+
+/**
+ * Extract **Tags:** field from candidate card content.
+ * Matches: **Tags:** #frontend #backend #ai → ['frontend', 'backend', 'ai']
+ */
+export function extractTags(content: string): string[] {
+  const match = content.match(/^\*\*Tags:\*\*\s*((?:#\S+\s*)+)$/m)
+  if (!match) return []
+  return match[1]
+    .split(/\s+/)
+    .map(t => t.replace(/^#/, '').trim())
+    .filter(Boolean)
+}
+
 export function extractCategory(content: string): string {
   // **Category:** ui-component
   const fm = extractFrontmatter(content)

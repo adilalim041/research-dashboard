@@ -6,6 +6,72 @@ import { CandidateCardComponent } from '@/components/CandidateCard'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { clearCache } from '@/services/github'
+import type { CandidateCard } from '@/types'
+
+// ─── Known usage-type order + display labels ─────────────────────────────────
+const HOME_TYPE_ORDER = ['library', 'tool', 'product-idea', 'pattern', 'reference']
+const HOME_TYPE_LABELS: Record<string, string> = {
+  library:        'Library',
+  tool:           'Tool',
+  'product-idea': 'Product idea',
+  pattern:        'Pattern',
+  reference:      'Reference',
+  untyped:        'Other',
+}
+
+/**
+ * Groups candidates by usageType and renders compact cards per group.
+ * Used on HomePage "Последние находки" section.
+ */
+function HomeRecentCandidates({ candidates }: { candidates: CandidateCard[] }) {
+  // Build ordered group map
+  const map = new Map<string, CandidateCard[]>()
+  for (const c of candidates) {
+    const key = c.usageType || 'untyped'
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(c)
+  }
+
+  const ordered = new Map<string, CandidateCard[]>()
+  for (const t of HOME_TYPE_ORDER) {
+    if (map.has(t)) ordered.set(t, map.get(t)!)
+  }
+  if (map.has('untyped')) ordered.set('untyped', map.get('untyped')!)
+  for (const [k, v] of map) {
+    if (!ordered.has(k)) ordered.set(k, v)
+  }
+
+  const groups = Array.from(ordered.entries())
+
+  // If all cards have no usageType, fall back to flat list
+  if (groups.length === 1 && groups[0][0] === 'untyped') {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {candidates.map(c => (
+          <CandidateCardComponent key={c.filename} candidate={c} compact />
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {groups.map(([type, cards]) => (
+        <section key={type}>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            {HOME_TYPE_LABELS[type] || type}
+            <span className="ml-1.5 font-normal normal-case">({cards.length})</span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {cards.map(c => (
+              <CandidateCardComponent key={c.filename} candidate={c} compact />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
 
 export function HomePage() {
   const { candidates, loading: cLoading, error: cError } = useCandidates()
@@ -91,15 +157,13 @@ export function HomePage() {
             Все
           </Link>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {sortedCandidates.slice(0, 10).map((c) => (
-            <CandidateCardComponent key={c.filename} candidate={c} compact />
-          ))}
-        </div>
-        {sortedCandidates.length === 0 && (
+
+        {sortedCandidates.length === 0 ? (
           <p className="text-sm text-muted-foreground py-8 text-center">
             Кандидатов не найдено
           </p>
+        ) : (
+          <HomeRecentCandidates candidates={sortedCandidates.slice(0, 20)} />
         )}
       </div>
 

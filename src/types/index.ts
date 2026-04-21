@@ -22,6 +22,10 @@ export interface CandidateCard {
   niche: string
   category: string
   studyStatus: 'found' | 'studied' | 'applied' | 'promoted-tier-A' | 'promoted-tier-B' | 'rejected'
+  /** From **Usage type:** field — library | tool | product-idea | pattern | reference */
+  usageType: string | null
+  /** From **Tags:** field — e.g. ['frontend', 'backend', 'ai'] */
+  tags: string[]
 }
 
 export interface StudyReport {

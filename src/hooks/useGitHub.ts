@@ -23,6 +23,8 @@ import {
   extractUrl,
   extractNiche,
   extractCategory,
+  extractUsageType,
+  extractTags,
   extractStudyStatus,
   parseStudyOverview,
   getNameFromFilename,
@@ -85,6 +87,8 @@ export function useCandidates() {
               url: extractUrl(content),
               niche: extractNiche(content),
               category: extractCategory(content),
+              usageType: extractUsageType(content),
+              tags: extractTags(content),
               studyStatus: extractStudyStatus(content, f.name, studyFolderNames),
               content,
             }
