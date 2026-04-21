@@ -25,6 +25,61 @@ const FETCH_TIMEOUT_MS = 10_000;
 const CANDIDATE_DIR = 'research/candidates';
 const QUEUE_DIR = 'system/queue/pending';
 
+// ── In-memory rate limit ──────────────────────────────────────────────────────
+// Warm-invocation scope only (Vercel serverless — each cold start resets map).
+// Goal: mitigate brute-force / flood if ADMIN_SECRET ever leaks. Not a DDoS shield.
+// Window: 60s rolling, max 10 requests per IP.
+const RL_WINDOW_MS = 60_000;
+const RL_MAX_HITS = 10;
+const rlHits = new Map<string, number[]>();
+
+function rateLimitHit(ip: string): { allowed: boolean; retry_after_s: number } {
+  const now = Date.now();
+  const cutoff = now - RL_WINDOW_MS;
+  const hits = (rlHits.get(ip) ?? []).filter((t) => t > cutoff);
+  if (hits.length >= RL_MAX_HITS) {
+    const oldest = hits[0] ?? now;
+    const retry = Math.ceil((oldest + RL_WINDOW_MS - now) / 1000);
+    return { allowed: false, retry_after_s: Math.max(1, retry) };
+  }
+  hits.push(now);
+  rlHits.set(ip, hits);
+  // Best-effort cleanup when map grows (prevent unbounded memory)
+  if (rlHits.size > 500) {
+    for (const [k, v] of rlHits) {
+      const fresh = v.filter((t) => t > cutoff);
+      if (fresh.length === 0) rlHits.delete(k);
+      else rlHits.set(k, fresh);
+    }
+  }
+  return { allowed: true, retry_after_s: 0 };
+}
+
+// ── Audit log helper — structured JSON for Vercel log aggregation ────────────
+// Use for every auth'd terminal outcome (201/401/409/422/503). Field `action`
+// is the machine-readable event name; `outcome` is the HTTP status category.
+function audit(
+  outcome: 'success' | 'denied' | 'conflict' | 'invalid' | 'upstream_error',
+  fields: Record<string, unknown>
+) {
+  console.log(
+    JSON.stringify({
+      level: 'audit',
+      action: 'promote.create',
+      outcome,
+      ts: new Date().toISOString(),
+      ...fields,
+    })
+  );
+}
+
+function clientIp(req: VercelRequest): string {
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string') return xff.split(',')[0].trim();
+  if (Array.isArray(xff) && xff.length > 0) return xff[0].split(',')[0].trim();
+  return 'unknown';
+}
+
 // ── Structured logger (no secrets, no full card body) ─────────────────────────
 function log(
   level: 'info' | 'warn' | 'error',
@@ -259,19 +314,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   const { pat, secret } = env;
 
+  const ip = clientIp(req);
+
+  // ── Step 1.5: Rate limit per IP (anti-flood for leaked secret scenario) ──
+  // Disabled in NODE_ENV=test so unit tests don't hit 429 with shared 'unknown' IP.
+  const rl = process.env.NODE_ENV === 'test'
+    ? { allowed: true, retry_after_s: 0 }
+    : rateLimitHit(ip);
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(rl.retry_after_s));
+    audit('denied', { reason: 'rate_limited', ip, retry_after_s: rl.retry_after_s });
+    return res.status(429).json({ error: 'rate_limited', retry_after_s: rl.retry_after_s });
+  }
+
   // ── Step 2: Auth ──────────────────────────────────────────────────────────
   const suppliedSecret = req.headers['x-admin-secret'];
   if (
     typeof suppliedSecret !== 'string' ||
     !constantTimeEqual(suppliedSecret, secret)
   ) {
-    log('warn', 'unauthorized request', { ip: req.headers['x-forwarded-for'] });
+    audit('denied', { reason: 'unauthorized', ip });
     return res.status(401).json({ error: 'unauthorized' });
   }
 
   // ── Step 3: Validate body ─────────────────────────────────────────────────
   const parsed = BodySchema.safeParse(req.body);
   if (!parsed.success) {
+    audit('invalid', {
+      reason: 'validation_failed',
+      ip,
+      issues: parsed.error.issues.map((e) => e.path.join('.')),
+    });
     return res.status(400).json({
       error: 'validation_failed',
       details: parsed.error.issues.map((e) => ({ path: e.path, message: e.message })),
@@ -325,12 +398,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const status = statusRaw.toLowerCase().trim();
 
   if (status === 'rejected') {
+    audit('invalid', { reason: 'candidate_rejected', ip, slug });
     return res.status(422).json({ error: 'candidate_rejected' });
   }
   if (status === 'studied') {
+    audit('invalid', { reason: 'already_studied', ip, slug });
     return res.status(422).json({ error: 'already_studied' });
   }
   if (status.startsWith('promoted-tier-')) {
+    audit('conflict', { reason: 'already_promoted', ip, slug, current_status: status });
     return res.status(409).json({ error: 'already_promoted', current_status: status });
   }
 
@@ -361,10 +437,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── Step 8: Dedup check ───────────────────────────────────────────────────
   const dedupResult = await checkQueueDedup(id, pat);
   if (dedupResult === 'exists') {
+    audit('conflict', { reason: 'already_queued', ip, id });
     return res.status(409).json({ error: 'already_queued', id });
   }
   if (dedupResult === 'github_error') {
     log('error', 'github error during dedup check', { id });
+    audit('upstream_error', { reason: 'github_dedup_error', ip, id });
     return res.status(503).json({ error: 'github_unavailable' });
   }
 
@@ -479,6 +557,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── Step 12: Return 201 ───────────────────────────────────────────────────
+  audit('success', {
+    ip,
+    id,
+    slug,
+    tier,
+    for_project: forProject,
+    owner_repo: `${owner}/${repo}`,
+    candidate_status_updated: candidateStatusUpdated,
+  });
   return res.status(201).json({
     ok: true,
     id,
