@@ -291,10 +291,10 @@ export function TelemetryPage() {
   const { entries, loading, error, reload } = useTelemetry()
   const [window, setWindow] = useState<Window>(30)
 
-  if (loading) return <LoadingSpinner message="Загрузка телеметрии..." />
-  if (error)   return <ErrorMessage message={error} onRetry={reload} />
-
-  const filtered = filterByWindow(entries, window)
+  const filtered = useMemo(
+    () => filterByWindow(entries, window),
+    [entries, window],
+  )
 
   const topLearnings = useMemo(
     () => topN(filtered.flatMap(e => e.learnings_used ?? []), 10),
@@ -304,6 +304,9 @@ export function TelemetryPage() {
     () => topN(filtered.flatMap(e => e.library_used ?? []), 10),
     [filtered],
   )
+
+  if (loading) return <LoadingSpinner message="Загрузка телеметрии..." />
+  if (error)   return <ErrorMessage message={error} onRetry={reload} />
 
   return (
     <div>
